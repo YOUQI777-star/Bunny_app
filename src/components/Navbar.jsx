@@ -47,7 +47,7 @@ export default function Navbar() {
                   onClick={() => { navigate('/profile'); setMenuOpen(false) }}
                   className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50"
                 >
-                  个人主页
+                  我的院子
                 </button>
                 <button
                   onClick={handleSignOut}

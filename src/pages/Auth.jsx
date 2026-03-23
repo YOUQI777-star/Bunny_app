@@ -37,7 +37,7 @@ export default function Auth() {
 
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-stone-800 tracking-tight">邦尼日历</h1>
-          <p className="text-stone-400 mt-2 text-sm">记录你在意的一切</p>
+          <p className="text-stone-400 mt-2 text-sm">邦尼的小院子</p>
         </div>
 
         {/* 切换 */}
@@ -81,7 +81,7 @@ export default function Auth() {
           disabled={loading}
           className="w-full py-4 bg-stone-800 text-white rounded-xl font-semibold text-base hover:bg-stone-700 active:scale-95 transition-all disabled:opacity-50"
         >
-          {loading ? '处理中...' : mode === 'login' ? '登录 →' : '注册 →'}
+          {loading ? '请等一等...' : mode === 'login' ? '登录 →' : '注册 →'}
         </button>
 
       </div>

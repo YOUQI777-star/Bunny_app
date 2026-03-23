@@ -32,7 +32,7 @@ export default function Home() {
         {/* 欢迎语 */}
         <div className="mb-10">
           <h2 className="text-2xl font-bold text-stone-800 tracking-tight">
-            {user ? `你好 👋` : '开始记录'}
+            {user ? `人，你好 👋` : '开始记录'}
           </h2>
           <p className="text-stone-400 mt-1 text-sm">
             {user ? '选择一个分类，开始新的记录' : '登录后记录你在意的一切'}

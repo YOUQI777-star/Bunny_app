@@ -130,7 +130,7 @@ ${photoSummary}
     <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-400">加载中...</div>
   )
   if (!subject) return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-400">找不到该主页</div>
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-400">走丢了...</div>
   )
 
   const typeLabel = { pet: '宠物', person: '人物', thing: '事物', bottle: '漂流瓶' }[subject.type] || ''
@@ -173,7 +173,7 @@ ${photoSummary}
           disabled={bioLoading}
           className="mt-4 text-xs px-4 py-2 rounded-full border border-stone-300 text-stone-500 hover:bg-stone-100 transition-colors disabled:opacity-50"
         >
-          {bioLoading ? '✨ AI 正在回忆...' : subject.bio ? '重新生成简介' : '✨ 生成 AI 简介'}
+          {bioLoading ? '正在回忆...' : subject.bio ? '重新生成简介' : '生成 AI 简介'}
         </button>
         <button
           onClick={() => {
