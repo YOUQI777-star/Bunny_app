@@ -45,8 +45,9 @@ export default function SubjectDetail() {
     if (!pendingFile) return
     setUploading(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
       const ext = pendingFile.name.split('.').pop()
-      const fileName = `${Date.now()}.${ext}`
+      const fileName = `${user.id}/${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage
         .from('photos')
         .upload(`subjects/${id}/${fileName}`, pendingFile)
@@ -82,7 +83,7 @@ export default function SubjectDetail() {
       return `第${i + 1}张照片，时间：${date}，备注：${cap}`
     }).join('\n')
 
-    const typeLabel = { pet: '宠物', person: '人物', object: '物品' }[subject.type]
+    const typeLabel = { pet: '宠物', person: '人物', thing: '事物', bottle: '漂流瓶' }[subject.type] || '对象'
     const prompt = `你是一个温情的叙述者。以下是关于一个叫「${subject.name}」的${typeLabel}的照片记录：
 
 ${photoSummary}
@@ -132,13 +133,13 @@ ${photoSummary}
     <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-400">找不到该主页</div>
   )
 
-  const typeLabel = { pet: '宠物', person: '人物', object: '物品' }[subject.type] || ''
+  const typeLabel = { pet: '宠物', person: '人物', thing: '事物', bottle: '漂流瓶' }[subject.type] || ''
 
   return (
     <div className="min-h-screen bg-stone-50">
 
       <div className="px-4 pt-5 pb-2">
-        <button onClick={() => navigate('/')} className="text-stone-400 text-sm hover:text-stone-600">← 返回</button>
+        <button onClick={() => navigate(-1)} className="text-stone-400 text-sm hover:text-stone-600">← 返回</button>
       </div>
 
       <div className="flex flex-col items-center pt-4 pb-8 px-4">
@@ -150,6 +151,16 @@ ${photoSummary}
         </div>
         <h1 className="text-2xl font-bold text-stone-800 tracking-tight">{subject.name}</h1>
         <span className="text-xs text-stone-400 mt-1 bg-stone-200 px-2 py-0.5 rounded-full">{typeLabel}</span>
+
+        {subject.tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2 justify-center">
+            {subject.tags.map(tag => (
+              <span key={tag} className="text-xs bg-stone-100 text-stone-500 px-2.5 py-0.5 rounded-full">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
 
         {subject.bio_tagline && (
           <p className="mt-3 text-stone-500 text-sm italic text-center max-w-xs">"{subject.bio_tagline}"</p>
@@ -174,7 +185,6 @@ ${photoSummary}
         >
           🔗 复制分享链接
         </button>
-        
       </div>
 
       <div className="px-4 max-w-lg mx-auto">
@@ -234,7 +244,9 @@ ${photoSummary}
               <img src={photo.image_url} className="w-full object-cover" />
               <div className="px-4 py-3">
                 {photo.taken_at && (
-                  <p className="text-xs text-stone-300 mb-1">{new Date(photo.taken_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                  <p className="text-xs text-stone-300 mb-1">
+                    {new Date(photo.taken_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
                 )}
                 {photo.caption && (
                   <p className="text-sm text-stone-600">{photo.caption}</p>
