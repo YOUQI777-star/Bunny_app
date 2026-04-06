@@ -1,25 +1,24 @@
 export async function onRequestPost(context) {
-  const OPENAI_API_KEY = context.env.OPENAI_API_KEY
-  if (!OPENAI_API_KEY) {
-    return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not configured' }), {
-      status: 500, headers: { 'Content-Type': 'application/json' }
-    })
-  }
+  try {
+    const OPENAI_API_KEY = context.env.OPENAI_API_KEY
+    if (!OPENAI_API_KEY) {
+      return json({ error: 'OPENAI_API_KEY not configured' }, 500)
+    }
 
-  const { subject, photos } = await context.request.json()
+    const { subject, photos } = await context.request.json()
 
-  const typeLabel = { pet: '宠物', person: '人物', thing: '事物', bottle: '漂流瓶' }
-  const type = typeLabel[subject.type] || '对象'
-  const imagePhotos = photos.filter(p => p.image_url).slice(0, 6)
+    const typeLabel = { pet: '宠物', person: '人物', thing: '事物', bottle: '漂流瓶' }
+    const type = typeLabel[subject.type] || '对象'
+    const imagePhotos = photos.filter(p => p.image_url).slice(0, 4)
 
-  const textContext = photos.map(p => {
-    const date = p.taken_at
-      ? new Date(p.taken_at + 'T00:00:00').toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
-      : '某天'
-    return p.caption ? `${date}：${p.caption}` : `${date}（无文字）`
-  }).join('\n')
+    const textContext = photos.map(p => {
+      const date = p.taken_at
+        ? new Date(p.taken_at + 'T00:00:00').toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+        : '某天'
+      return p.caption ? `${date}：${p.caption}` : `${date}（无文字）`
+    }).join('\n')
 
-  const promptText = `你在帮一个人整理关于「${subject.name}」的记忆。这是一个${type}。
+    const promptText = `你在帮一个人整理关于「${subject.name}」的记忆。这是一个${type}。
 
 留下的记录（按时间）：
 ${textContext}
@@ -31,52 +30,59 @@ ${imagePhotos.length > 0 ? '\n以下是部分照片，请结合照片和文字�
 
 只返回 JSON，不要任何解释：{"tagline":"...","bio":"..."}`
 
-  // 在 Cloudflare 侧下载图片转 base64，再传给 OpenAI（避免 OpenAI 直连 Supabase 超时）
-  const content = [{ type: 'text', text: promptText }]
-  for (const photo of imagePhotos) {
-    try {
-      const imgRes = await fetch(photo.image_url, { signal: AbortSignal.timeout(8000) })
-      if (imgRes.ok) {
-        const buffer = await imgRes.arrayBuffer()
-        const bytes = new Uint8Array(buffer)
-        let binary = ''
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-        const base64 = btoa(binary)
-        const mime = imgRes.headers.get('content-type') || 'image/jpeg'
-        content.push({ type: 'image_url', image_url: { url: `data:${mime};base64,${base64}`, detail: 'low' } })
+    const content = [{ type: 'text', text: promptText }]
+
+    // 下载图片转 base64（Cloudflare Workers 不支持 AbortSignal.timeout，用 Promise.race 超时）
+    for (const photo of imagePhotos) {
+      try {
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 7000)
+        )
+        const imgRes = await Promise.race([fetch(photo.image_url), timeout])
+        if (imgRes.ok) {
+          const buffer = await imgRes.arrayBuffer()
+          const bytes = new Uint8Array(buffer)
+          let binary = ''
+          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+          const base64 = btoa(binary)
+          const mime = imgRes.headers.get('content-type') || 'image/jpeg'
+          content.push({ type: 'image_url', image_url: { url: `data:${mime};base64,${base64}`, detail: 'low' } })
+        }
+      } catch {
+        // 单张图失败不阻断
       }
-    } catch {
-      // 单张图下载失败不阻断整体
     }
-  }
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content }],
-      temperature: 0.85,
-      max_tokens: 500,
-    }),
-  })
-
-  const data = await res.json()
-  if (!res.ok) {
-    return new Response(JSON.stringify({ error: data.error?.message || 'OpenAI error' }), {
-      status: 500, headers: { 'Content-Type': 'application/json' }
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content }],
+        temperature: 0.85,
+        max_tokens: 500,
+      }),
     })
+
+    const data = await res.json()
+    if (!res.ok) return json({ error: data.error?.message || 'OpenAI error' }, 500)
+
+    const raw = data.choices[0].message.content
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (!match) return json({ error: 'AI 返回格式异常' }, 500)
+
+    return json(JSON.parse(match[0]))
+  } catch (err) {
+    return json({ error: err.message || '未知错误' }, 500)
   }
+}
 
-  const raw = data.choices[0].message.content
-  const match = raw.match(/\{[\s\S]*\}/)
-  if (!match) throw new Error('AI 返回格式异常：' + raw.slice(0, 100))
-  const parsed = JSON.parse(match[0])
-
-  return new Response(JSON.stringify(parsed), {
-    headers: { 'Content-Type': 'application/json' }
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
   })
 }
