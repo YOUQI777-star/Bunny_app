@@ -11,21 +11,11 @@ const ALL_TAG = '全部'
 export default function Profile() {
   const navigate = useNavigate()
   const avatarFileRef = useRef()
-  const momentFileRef = useRef()
 
   const [user, setUser] = useState(null)
   const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [avatarUploading, setAvatarUploading] = useState(false)
-
-  // 我的回声
-  const [selfSubjectId, setSelfSubjectId] = useState(null)
-  const [selfPhotos, setSelfPhotos] = useState([])
-  const [selfLoading, setSelfLoading] = useState(false)
-  const [pendingMoments, setPendingMoments] = useState([])
-  const [showMomentPanel, setShowMomentPanel] = useState(false)
-  const [uploadingMoment, setUploadingMoment] = useState(false)
-  const [lightboxPhoto, setLightboxPhoto] = useState(null)
 
   const [activeTag, setActiveTag] = useState(ALL_TAG)
   const [activeCategory, setActiveCategory] = useState(ALL_TAG)
@@ -42,7 +32,6 @@ export default function Profile() {
         .order('created_at', { ascending: false })
       setSubjects(data || [])
       setLoading(false)
-      loadSelfBoard(user.id)
     }
     fetchData()
   }, [])
@@ -98,94 +87,6 @@ export default function Profile() {
     }
   }
 
-  // ─── 我的回声 ──────────────────────────────────────────────
-  async function loadSelfBoard(userId) {
-    setSelfLoading(true)
-    const { data: existing } = await supabase
-      .from('subjects')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('type', 'self')
-      .maybeSingle()
-    if (existing?.id) {
-      setSelfSubjectId(existing.id)
-      const { data: photos } = await supabase
-        .from('photos')
-        .select('*')
-        .eq('subject_id', existing.id)
-        .order('created_at', { ascending: false })
-      setSelfPhotos(photos || [])
-    }
-    setSelfLoading(false)
-  }
-
-  function handleMomentFileSelect(e) {
-    const files = Array.from(e.target.files)
-    if (!files.length) return
-    setPendingMoments(files.map(file => ({
-      id: Math.random().toString(36).slice(2),
-      file,
-      preview: URL.createObjectURL(file),
-      caption: '',
-    })))
-    setShowMomentPanel(true)
-    e.target.value = ''
-  }
-
-  function updateMomentCaption(itemId, value) {
-    setPendingMoments(prev => prev.map(item => item.id === itemId ? { ...item, caption: value } : item))
-  }
-
-  function removePendingMoment(itemId) {
-    setPendingMoments(prev => {
-      const next = prev.filter(item => item.id !== itemId)
-      if (!next.length) setShowMomentPanel(false)
-      return next
-    })
-  }
-
-  async function handleMomentUpload() {
-    if (!pendingMoments.length) return
-    setUploadingMoment(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      let sid = selfSubjectId
-      if (!sid) {
-        const { data: created } = await supabase
-          .from('subjects')
-          .insert([{ user_id: user.id, name: '我的回声', type: 'self', category: 'self', tags: [] }])
-          .select('id')
-          .single()
-        sid = created?.id
-        setSelfSubjectId(sid)
-      }
-      for (const item of pendingMoments) {
-        const ext = item.file.name.split('.').pop()
-        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('photos')
-          .upload(`subjects/${sid}/${fileName}`, item.file)
-        if (uploadError) throw uploadError
-        const { data: urlData } = supabase.storage
-          .from('photos')
-          .getPublicUrl(`subjects/${sid}/${fileName}`)
-        await supabase.from('photos').insert([{
-          subject_id: sid,
-          image_url: urlData.publicUrl,
-          caption: item.caption.trim() || null,
-          taken_at: null,
-        }])
-      }
-      setPendingMoments([])
-      setShowMomentPanel(false)
-      loadSelfBoard(user.id)
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setUploadingMoment(false)
-    }
-  }
-
   if (loading) return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-400">加载中...</div>
   )
@@ -234,79 +135,19 @@ export default function Profile() {
           <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         </div>
 
-        {/* 我的回声（紧接头像卡下方）*/}
-        <div className="mb-8 bg-white rounded-2xl border border-stone-100 p-4">
-          <div className="flex items-end justify-between mb-3">
+        {/* 碎片入口 */}
+        <button
+          onClick={() => navigate('/fragments')}
+          className="w-full text-left bg-white rounded-2xl p-4 border border-stone-100 hover:border-stone-200 active:scale-[0.99] transition-all mb-8"
+        >
+          <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-stone-700">我的回声</h3>
+              <p className="text-sm text-stone-600">碎片</p>
               <p className="text-xs text-stone-400 mt-0.5">院子记录的院子</p>
             </div>
-            <button
-              onClick={() => momentFileRef.current.click()}
-              className="text-xs text-stone-400 border border-stone-200 px-3 py-1.5 rounded-lg hover:bg-stone-100 transition-colors"
-            >+ 添加</button>
+            <span className="text-stone-300 text-sm">→</span>
           </div>
-          <input ref={momentFileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleMomentFileSelect} />
-
-          {/* 待上传预览 */}
-          {showMomentPanel && pendingMoments.length > 0 && (
-            <div className="mb-3 space-y-3">
-              {pendingMoments.map(item => (
-                <div key={item.id} className="rounded-xl border border-stone-200 overflow-hidden">
-                  <div className="relative">
-                    <img src={item.preview} className="w-full max-h-52 object-cover" />
-                    <button
-                      onClick={() => removePendingMoment(item.id)}
-                      className="absolute top-2 right-2 w-7 h-7 bg-black/50 text-white rounded-full text-xs flex items-center justify-center hover:bg-black/70"
-                    >✕</button>
-                  </div>
-                  <div className="px-3 py-2.5 bg-stone-50">
-                    <input
-                      type="text"
-                      value={item.caption}
-                      onChange={e => updateMomentCaption(item.id, e.target.value)}
-                      placeholder="一句话..."
-                      className="w-full bg-transparent text-sm text-stone-700 placeholder-stone-300 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              ))}
-              <div className="flex gap-2">
-                <button onClick={() => { setShowMomentPanel(false); setPendingMoments([]) }} className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-500 hover:bg-stone-50">取消</button>
-                <button onClick={handleMomentUpload} disabled={uploadingMoment} className="flex-1 py-2.5 rounded-xl bg-stone-800 text-white text-sm font-medium hover:bg-stone-700 disabled:opacity-50">
-                  {uploadingMoment ? '上传中...' : `保存${pendingMoments.length > 1 ? `（${pendingMoments.length}张）` : ''}`}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 照片网格 */}
-          {selfLoading ? (
-            <div className="py-6 text-center text-stone-300 text-sm">加载中...</div>
-          ) : selfPhotos.length === 0 && !showMomentPanel ? (
-            <button
-              onClick={() => momentFileRef.current.click()}
-              className="w-full py-8 rounded-xl border border-dashed border-stone-200 text-stone-300 text-sm hover:border-stone-300 hover:text-stone-400 transition-colors"
-            >点击添加第一张照片</button>
-          ) : (
-            <div className="grid grid-cols-3 gap-1.5">
-              {selfPhotos.map(photo => (
-                <button
-                  key={photo.id}
-                  onClick={() => setLightboxPhoto(photo)}
-                  className="relative overflow-hidden rounded-lg bg-stone-100 active:scale-95 transition-transform"
-                >
-                  <img src={photo.image_url} className="w-full aspect-square object-cover" />
-                  {photo.caption && (
-                    <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1 bg-gradient-to-t from-black/50 to-transparent">
-                      <p className="text-white text-[10px] leading-snug line-clamp-1 text-left">{photo.caption}</p>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        </button>
 
         {/* 统计 */}
         <div className="grid grid-cols-4 gap-2 mb-8">
@@ -408,16 +249,6 @@ export default function Profile() {
         )}
       </div>
 
-      {/* 灯箱 */}
-      {lightboxPhoto && (
-        <div className="fixed inset-0 z-50 bg-black/92 flex flex-col items-center justify-center" onClick={() => setLightboxPhoto(null)}>
-          <button className="absolute top-5 right-5 text-white/60 hover:text-white text-3xl leading-none" onClick={() => setLightboxPhoto(null)}>×</button>
-          <img src={lightboxPhoto.image_url} className="max-w-full max-h-[80vh] object-contain px-4 rounded-lg" />
-          {lightboxPhoto.caption && (
-            <p className="text-white/80 text-sm mt-5 text-center px-8 max-w-sm leading-relaxed">{lightboxPhoto.caption}</p>
-          )}
-        </div>
-      )}
     </div>
   )
 }
