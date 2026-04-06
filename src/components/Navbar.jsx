@@ -53,9 +53,12 @@ export default function Navbar() {
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="w-8 h-8 rounded-full bg-stone-800 text-white text-xs font-semibold flex items-center justify-center"
+              className="w-8 h-8 rounded-full overflow-hidden bg-stone-800 text-white text-xs font-semibold flex items-center justify-center"
             >
-              {user.email[0].toUpperCase()}
+              {user.user_metadata?.avatar_url
+                ? <img src={user.user_metadata.avatar_url} className="w-full h-full object-cover" />
+                : user.email[0].toUpperCase()
+              }
             </button>
 
             {menuOpen && (

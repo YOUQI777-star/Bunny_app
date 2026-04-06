@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -10,12 +10,15 @@ const ALL_TAG = '全部'
 
 export default function Profile() {
   const navigate = useNavigate()
+  const avatarFileRef = useRef()
+
   const [user, setUser] = useState(null)
   const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+
   const [activeTag, setActiveTag] = useState(ALL_TAG)
   const [activeCategory, setActiveCategory] = useState(ALL_TAG)
-  const [viewMode, setViewMode] = useState('grid') // 'grid' | 'timeline'
   const [selectedYear, setSelectedYear] = useState(ALL_TAG)
 
   useEffect(() => {
@@ -33,37 +36,126 @@ export default function Profile() {
     fetchData()
   }, [])
 
-  // 收集所有标签
-  const allTags = [ALL_TAG, ...new Set(subjects.flatMap(s => s.tags || []))]
-  const allCategories = [ALL_TAG, ...new Set(subjects.map(s => s.category || s.type))]
-  const allYears = [ALL_TAG, ...new Set(subjects.map(s => new Date(s.created_at).getFullYear().toString()))]
+  // 过滤掉 type: 'self'（首页个人板块用的内部 subject）
+  const visibleSubjects = subjects.filter(s => s.type !== 'self')
 
-  // 筛选
-  const filtered = subjects.filter(s => {
+  const allTags = [ALL_TAG, ...new Set(visibleSubjects.flatMap(s => s.tags || []))]
+  const allCategories = [ALL_TAG, ...new Set(visibleSubjects.map(s => s.category || s.type))]
+  const allYears = [ALL_TAG, ...new Set(visibleSubjects.map(s => new Date(s.created_at).getFullYear().toString()))]
+
+  const filtered = visibleSubjects.filter(s => {
     const tagMatch = activeTag === ALL_TAG || (s.tags || []).includes(activeTag)
     const catMatch = activeCategory === ALL_TAG || (s.category || s.type) === activeCategory
     const yearMatch = selectedYear === ALL_TAG || new Date(s.created_at).getFullYear().toString() === selectedYear
     return tagMatch && catMatch && yearMatch
   })
 
+  // ─── 头像上传 ──────────────────────────────────────────────
+  async function handleAvatarChange(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setAvatarUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const fileName = `${user.id}/${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('photos')
+        .upload(`profile/${fileName}`, file)
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage
+        .from('photos')
+        .getPublicUrl(`profile/${fileName}`)
+      const { data } = await supabase.auth.updateUser({
+        data: { avatar_url: urlData.publicUrl }
+      })
+      setUser(data.user)
+      e.target.value = ''
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
+  async function handleDeleteAvatar() {
+    setAvatarUploading(true)
+    try {
+      const { data } = await supabase.auth.updateUser({ data: { avatar_url: null } })
+      setUser(data.user)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
   if (loading) return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-400">加载中...</div>
   )
+
+  const avatarUrl = user?.user_metadata?.avatar_url
 
   return (
     <div className="min-h-screen bg-stone-50">
       <div className="max-w-lg mx-auto px-4 pt-8 pb-16">
 
-        {/* 头部 */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-stone-800 tracking-tight">我的记录</h1>
-          <p className="text-stone-400 text-sm mt-1">{user?.email}</p>
+        {/* ① 头像 + 用户信息 */}
+        <div className="flex items-center gap-4 mb-8 bg-white rounded-2xl p-4 border border-stone-100">
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={() => avatarFileRef.current.click()}
+              disabled={avatarUploading}
+              className="w-16 h-16 rounded-full overflow-hidden bg-stone-200 block"
+            >
+              {avatarUrl
+                ? <img src={avatarUrl} className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-stone-400">
+                    {user?.email?.[0]?.toUpperCase()}
+                  </div>
+              }
+            </button>
+            {/* 上传中 spinner */}
+            {avatarUploading && (
+              <div className="absolute inset-0 bg-white/70 rounded-full flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-stone-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {/* 编辑角标 */}
+            {!avatarUploading && (
+              <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-stone-700 rounded-full flex items-center justify-center text-white text-xs pointer-events-none">
+                +
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-stone-700 truncate">{user?.email}</p>
+            <div className="flex gap-3 mt-1.5">
+              <button
+                onClick={() => avatarFileRef.current.click()}
+                disabled={avatarUploading}
+                className="text-xs text-stone-400 hover:text-stone-600 transition-colors"
+              >
+                {avatarUrl ? '更换头像' : '上传头像'}
+              </button>
+              {avatarUrl && (
+                <button
+                  onClick={handleDeleteAvatar}
+                  disabled={avatarUploading}
+                  className="text-xs text-red-300 hover:text-red-400 transition-colors"
+                >
+                  删除
+                </button>
+              )}
+            </div>
+          </div>
+          <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         </div>
 
-        {/* 统计 */}
+        {/* 统计（过滤 self-subject）*/}
         <div className="grid grid-cols-4 gap-2 mb-8">
           {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
-            const count = subjects.filter(s => (s.category || s.type) === key).length
+            const count = visibleSubjects.filter(s => (s.category || s.type) === key).length
             return (
               <div key={key} className="bg-white rounded-xl p-3 text-center border border-stone-100">
                 <div className="text-xl">{label.split(' ')[0]}</div>
@@ -76,8 +168,6 @@ export default function Profile() {
 
         {/* 筛选区 */}
         <div className="space-y-3 mb-6">
-
-          {/* 分类筛选 */}
           <div>
             <p className="text-xs text-stone-400 mb-1.5 font-medium">分类</p>
             <div className="flex gap-2 flex-wrap">
@@ -97,7 +187,6 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* 标签筛选 */}
           {allTags.length > 1 && (
             <div>
               <p className="text-xs text-stone-400 mb-1.5 font-medium">标签</p>
@@ -119,7 +208,6 @@ export default function Profile() {
             </div>
           )}
 
-          {/* 年份筛选 */}
           {allYears.length > 2 && (
             <div>
               <p className="text-xs text-stone-400 mb-1.5 font-medium">年份</p>
@@ -142,7 +230,6 @@ export default function Profile() {
           )}
         </div>
 
-        {/* 结果数 + 新建按钮 */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs text-stone-400">{filtered.length} 个记录</p>
           <button
@@ -153,7 +240,6 @@ export default function Profile() {
           </button>
         </div>
 
-        {/* 卡片网格 */}
         {filtered.length === 0 ? (
           <div className="text-center py-16 text-stone-300">
             <div className="text-5xl mb-3">📭</div>
@@ -167,7 +253,6 @@ export default function Profile() {
                 onClick={() => navigate(`/subject/${subject.id}`)}
                 className="bg-white rounded-2xl overflow-hidden border border-stone-100 text-left hover:border-stone-300 hover:shadow-sm active:scale-95 transition-all"
               >
-                {/* 封面图 */}
                 <div className="w-full h-28 bg-stone-100 overflow-hidden">
                   {subject.avatar_url
                     ? <img src={subject.avatar_url} className="w-full h-full object-cover" />
@@ -176,7 +261,6 @@ export default function Profile() {
                       </div>
                   }
                 </div>
-                {/* 信息 */}
                 <div className="p-3">
                   <p className="font-semibold text-stone-800 text-sm truncate">{subject.name}</p>
                   <p className="text-xs text-stone-400 mt-0.5">
