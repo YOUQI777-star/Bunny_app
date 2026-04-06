@@ -71,8 +71,10 @@ ${imagePhotos.length > 0 ? '\n以下是部分照片，请结合照片和文字�
     })
   }
 
-  const raw = data.choices[0].message.content.replace(/```json|```/g, '').trim()
-  const parsed = JSON.parse(raw)
+  const raw = data.choices[0].message.content
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error('AI 返回格式异常：' + raw.slice(0, 100))
+  const parsed = JSON.parse(match[0])
 
   return new Response(JSON.stringify(parsed), {
     headers: { 'Content-Type': 'application/json' }
