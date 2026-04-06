@@ -27,6 +27,8 @@ export default function SubjectDetail() {
   const [copySuccess, setCopySuccess] = useState(false)
 
   const [bioLoading, setBioLoading] = useState(false)
+  const [selectedLens, setSelectedLens] = useState('whole_arc')
+  const [hasWritings, setHasWritings] = useState(false)
 
   // ① 删除 / 编辑
   const [activeMenu, setActiveMenu] = useState(null)        // photo.id | null
@@ -59,8 +61,10 @@ export default function SubjectDetail() {
     setLoading(true)
     const { data: s } = await supabase.from('subjects').select('*').eq('id', id).single()
     const { data: p } = await supabase.from('photos').select('*').eq('subject_id', id).order('created_at', { ascending: true })
+    const { count } = await supabase.from('ai_writings').select('id', { count: 'exact', head: true }).eq('subject_id', id)
     setSubject(s)
     setPhotos(p || [])
+    setHasWritings((count || 0) > 0)
     setLoading(false)
   }
 
@@ -210,11 +214,32 @@ export default function SubjectDetail() {
       const res = await fetch('/api/generate-bio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, photos }),
+        body: JSON.stringify({ subject, photos, memory_lens: selectedLens }),
       })
-      const data = await res.json()
-      if (!res.ok || data?.error) throw new Error(data?.error || '请求失败')
-      await supabase.from('subjects').update({ bio: data.bio, bio_tagline: data.tagline }).eq('id', id)
+      const result = await res.json()
+      if (!res.ok || result?.error) throw new Error(result?.error || '请求失败')
+
+      const { analysis, writing, meta } = result
+
+      // 把之前的 is_selected 清掉
+      await supabase.from('ai_writings').update({ is_selected: false }).eq('subject_id', id).eq('is_selected', true)
+
+      // 存这次生成结果
+      await supabase.from('ai_writings').insert([{
+        subject_id: id,
+        user_id: subject.user_id,
+        memory_lens: meta.lens,
+        source_count: meta.source_count,
+        tagline: writing.tagline,
+        bio: writing.bio,
+        analysis_json: analysis,
+        is_selected: true,
+        is_favorite: false,
+      }])
+
+      // 同步回写 subject
+      await supabase.from('subjects').update({ bio: writing.bio, bio_tagline: writing.tagline }).eq('id', id)
+
       await fetchData()
     } catch (err) {
       alert('生成失败：' + err.message)
@@ -398,12 +423,35 @@ export default function SubjectDetail() {
           <p className="mt-2 text-stone-400 text-xs text-center max-w-xs leading-relaxed">{subject.bio}</p>
         )}
 
+        {/* Memory Lens 选择器 */}
+        <div className="mt-5 flex flex-col items-center gap-2">
+          <p className="text-xs text-stone-300">生成时参考</p>
+          <div className="flex gap-1.5 flex-wrap justify-center">
+            {[
+              { key: 'recent_snapshot', label: '最近记录' },
+              { key: 'first_impression', label: '最初印象' },
+              { key: 'whole_arc', label: '全部记录' },
+              { key: 'current_state', label: '当前状态' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setSelectedLens(key)}
+                className={`text-xs px-3 py-1.5 rounded-full transition-all ${
+                  selectedLens === key
+                    ? 'bg-stone-700 text-white'
+                    : 'bg-white border border-stone-200 text-stone-400 hover:border-stone-400'
+                }`}
+              >{label}</button>
+            ))}
+          </div>
+        </div>
+
         <button
           onClick={handleGenerateBio}
           disabled={bioLoading}
-          className="mt-4 text-xs px-4 py-2 rounded-full border border-stone-300 text-stone-500 hover:bg-stone-100 transition-colors disabled:opacity-50"
+          className="mt-3 text-xs px-4 py-2 rounded-full border border-stone-300 text-stone-500 hover:bg-stone-100 transition-colors disabled:opacity-50"
         >
-          {bioLoading ? '正在回忆...' : subject.bio ? '重新生成简介' : '生成 AI 简介'}
+          {bioLoading ? '正在回忆...' : subject.bio ? '重新生成' : '生成 AI 简介'}
         </button>
         <button
           onClick={handleCopyLink}
@@ -411,6 +459,12 @@ export default function SubjectDetail() {
         >
           {copySuccess ? '✅ 链接已复制！' : '🔗 复制分享链接'}
         </button>
+        {hasWritings && (
+          <button
+            onClick={() => navigate(`/subject/${id}/writings`)}
+            className="mt-2 text-xs text-stone-300 hover:text-stone-500 transition-colors"
+          >查看整理记录 →</button>
+        )}
       </div>
 
       {/* 记录区 */}

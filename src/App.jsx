@@ -9,6 +9,7 @@ import SubjectDetail from './pages/SubjectDetail'
 import SharePage from './pages/SharePage'
 import Profile from './pages/Profile'
 import Fragments from './pages/Fragments'
+import WritingsPage from './pages/WritingsPage'
 
 function ProtectedRoute({ user, children }) {
   if (user === undefined) return (
@@ -55,6 +56,11 @@ export default function App() {
           <Route path="/fragments" element={
             <ProtectedRoute user={user}>
               <Fragments />
+            </ProtectedRoute>
+          } />
+          <Route path="/subject/:id/writings" element={
+            <ProtectedRoute user={user}>
+              <WritingsPage />
             </ProtectedRoute>
           } />
         </Routes>
