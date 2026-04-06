@@ -207,7 +207,7 @@ export default function SubjectDetail() {
     if (photos.length === 0) { alert('请先添加至少一张照片或文字记录'); return }
     setBioLoading(true)
     try {
-      const { data, error } = await supabase.functions.invoke('generate-bio', {
+      const { data, error } = await supabase.functions.invoke('bright-action', {
         body: { subject, photos },
       })
       if (error) throw error
