@@ -207,11 +207,13 @@ export default function SubjectDetail() {
     if (photos.length === 0) { alert('请先添加至少一张照片或文字记录'); return }
     setBioLoading(true)
     try {
-      const { data, error } = await supabase.functions.invoke('bright-action', {
-        body: { subject, photos },
+      const res = await fetch('/api/generate-bio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, photos }),
       })
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
+      const data = await res.json()
+      if (!res.ok || data?.error) throw new Error(data?.error || '请求失败')
       await supabase.from('subjects').update({ bio: data.bio, bio_tagline: data.tagline }).eq('id', id)
       await fetchData()
     } catch (err) {
