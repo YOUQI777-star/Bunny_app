@@ -56,7 +56,7 @@ export default function SharePage() {
           <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-white shadow-lg bg-stone-200">
             {subject.avatar_url
               ? <img src={subject.avatar_url} className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center text-5xl">🐾</div>
+              : <div className="w-full h-full flex items-center justify-center text-5xl">{{ pet: '🐾', person: '🧑', thing: '🪴', bottle: '🌌' }[subject.type] || '🪴'}</div>
             }
           </div>
           <h1 className="mt-4 text-3xl font-bold text-stone-800 tracking-tight">{subject.name}</h1>
@@ -64,8 +64,8 @@ export default function SharePage() {
 
           {firstDate && lastDate && (
             <p className="mt-2 text-xs text-stone-400">
-              {new Date(firstDate).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}
-              {firstDate !== lastDate && ` — ${new Date(lastDate).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}`}
+              {new Date(firstDate + 'T00:00:00').toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}
+              {firstDate !== lastDate && ` — ${new Date(lastDate + 'T00:00:00').toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}`}
             </p>
           )}
         </div>
@@ -105,7 +105,7 @@ export default function SharePage() {
                   <div className="px-4 py-3">
                     {photo.taken_at && (
                       <p className="text-xs text-stone-300 mb-1">
-                        {new Date(photo.taken_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        {new Date(photo.taken_at + 'T00:00:00').toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
                       </p>
                     )}
                     {photo.image_url && photo.caption && (

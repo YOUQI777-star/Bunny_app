@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY
+const TYPE_EMOJI = { pet: '🐾', person: '🧑', thing: '🪴', bottle: '🌌' }
 
 export default function SubjectDetail() {
   const { id } = useParams()
@@ -29,7 +29,8 @@ export default function SubjectDetail() {
   const [bioLoading, setBioLoading] = useState(false)
 
   // ① 删除 / 编辑
-  const [activeMenu, setActiveMenu] = useState(null)   // photo.id | null
+  const [activeMenu, setActiveMenu] = useState(null)        // photo.id | null
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [editingPhoto, setEditingPhoto] = useState(null)
   const [editCaption, setEditCaption] = useState('')
   const [editTakenAt, setEditTakenAt] = useState('')
@@ -168,8 +169,7 @@ export default function SubjectDetail() {
 
   // ─── 删除 ────────────────────────────────────────────────
   async function handleDeletePhoto(photo) {
-    if (!confirm('确认删除这条记录？')) return
-    setActiveMenu(null)
+    setConfirmDeleteId(null)
     if (photo.image_url) {
       try {
         const marker = '/object/public/photos/'
@@ -205,22 +205,14 @@ export default function SubjectDetail() {
   // ─── AI 简介 ──────────────────────────────────────────────
   async function handleGenerateBio() {
     if (photos.length === 0) { alert('请先添加至少一张照片或文字记录'); return }
-    const photoSummary = photos.map((p, i) => {
-      const date = p.taken_at ? new Date(p.taken_at + 'T00:00:00').toLocaleDateString('zh-CN') : '某天'
-      return `第${i + 1}条记录，时间：${date}，备注：${p.caption || '（无备注）'}`
-    }).join('\n')
-    const typeLabel = { pet: '宠物', person: '人物', thing: '事物', bottle: '漂流瓶' }[subject.type] || '对象'
-    const prompt = `你是一个温情的叙述者。以下是关于一个叫「${subject.name}」的${typeLabel}的照片记录：\n\n${photoSummary}\n\n请根据这些记录：\n1. 写一句"灵魂概括"（15字以内，有诗意，作为tagline）\n2. 写一段温情的介绍（100-150字，像在介绍一个被深爱的存在）\n\n请严格按以下JSON格式返回，不要有其他内容：\n{"tagline": "xxx", "bio": "xxx"}`
     setBioLoading(true)
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
-        body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], temperature: 0.8 })
+      const { data, error } = await supabase.functions.invoke('generate-bio', {
+        body: { subject, photos },
       })
-      const data = await res.json()
-      const parsed = JSON.parse(data.choices[0].message.content.replace(/```json|```/g, '').trim())
-      await supabase.from('subjects').update({ bio: parsed.bio, bio_tagline: parsed.tagline }).eq('id', id)
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      await supabase.from('subjects').update({ bio: data.bio, bio_tagline: data.tagline }).eq('id', id)
       await fetchData()
     } catch (err) {
       alert('生成失败：' + err.message)
@@ -303,13 +295,30 @@ export default function SubjectDetail() {
                   className="w-full text-left px-3 py-2.5 text-xs text-stone-600 hover:bg-stone-50"
                 >✏️ 编辑</button>
                 <button
-                  onClick={() => handleDeletePhoto(photo)}
+                  onClick={() => { setConfirmDeleteId(photo.id); setActiveMenu(null) }}
                   className="w-full text-left px-3 py-2.5 text-xs text-red-400 hover:bg-stone-50"
                 >🗑 删除</button>
               </div>
             )}
           </div>
         </div>
+
+        {/* 内联删除确认 */}
+        {confirmDeleteId === photo.id && (
+          <div className="px-4 pb-4 pt-3 border-t border-stone-100 flex items-center justify-between gap-3">
+            <p className="text-xs text-stone-400">确认删除这条记录？</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-3 py-1.5 rounded-lg border border-stone-200 text-xs text-stone-500 hover:bg-stone-50"
+              >取消</button>
+              <button
+                onClick={() => handleDeletePhoto(photo)}
+                className="px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-400 hover:bg-red-100"
+              >删除</button>
+            </div>
+          </div>
+        )}
 
         {/* 内联编辑面板 */}
         {editingPhoto?.id === photo.id && (
@@ -366,7 +375,7 @@ export default function SubjectDetail() {
         <div className="w-24 h-24 rounded-full overflow-hidden bg-stone-200 mb-4">
           {subject.avatar_url
             ? <img src={subject.avatar_url} className="w-full h-full object-cover" />
-            : <div className="w-full h-full flex items-center justify-center text-4xl">🐾</div>
+            : <div className="w-full h-full flex items-center justify-center text-4xl">{TYPE_EMOJI[subject.type] || '🪴'}</div>
           }
         </div>
         <h1 className="text-2xl font-bold text-stone-800 tracking-tight">{subject.name}</h1>
@@ -520,9 +529,8 @@ export default function SubjectDetail() {
 
         {/* 空态 */}
         {photos.length === 0 && !showUploadPanel && !showTextPanel && (
-          <div className="text-center py-16 text-stone-300">
-            <div className="text-5xl mb-3">📷</div>
-            <p className="text-sm">还没有记录，添加第一张照片或文字吧</p>
+          <div className="text-center py-20 text-stone-300">
+            <p className="text-sm">这里还空着</p>
           </div>
         )}
 

@@ -11,9 +11,11 @@ export default function Fragments() {
   const [pendingFile, setPendingFile] = useState(null)
   const [pendingPreview, setPendingPreview] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [selfSubjectId, setSelfSubjectId] = useState(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   useEffect(() => {
     loadData()
@@ -90,12 +92,29 @@ export default function Fragments() {
       setPendingFile(null)
       setPendingPreview(null)
       setComposing(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
       loadData()
     } catch (err) {
       alert(err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleDelete(entry) {
+    setConfirmDeleteId(null)
+    if (entry.image_url) {
+      try {
+        const marker = '/object/public/photos/'
+        const idx = entry.image_url.indexOf(marker)
+        if (idx !== -1) {
+          await supabase.storage.from('photos').remove([entry.image_url.slice(idx + marker.length)])
+        }
+      } catch { /* storage 删除失败不阻塞 */ }
+    }
+    await supabase.from('photos').delete().eq('id', entry.id)
+    loadData()
   }
 
   return (
@@ -106,7 +125,9 @@ export default function Fragments() {
         <div className="flex items-center mb-10">
           <button onClick={() => navigate('/profile')} className="text-xs text-stone-400 hover:text-stone-600 transition-colors">← 返回</button>
           <p className="flex-1 text-center text-xs text-stone-400 tracking-widest">碎片</p>
-          <div className="w-10" />
+          <div className="w-10 text-right">
+            {saved && <span className="text-xs text-stone-300">已存</span>}
+          </div>
         </div>
 
         {/* 输入区 */}
@@ -178,9 +199,22 @@ export default function Fragments() {
                 {entry.caption && (
                   <p className="text-sm text-stone-600 leading-relaxed">{entry.caption}</p>
                 )}
-                <p className="text-xs text-stone-300 mt-2">
-                  {new Date(entry.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-stone-300">
+                    {new Date(entry.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                  {confirmDeleteId === entry.id ? (
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setConfirmDeleteId(null)} className="text-xs text-stone-300 hover:text-stone-500">取消</button>
+                      <button onClick={() => handleDelete(entry)} className="text-xs text-red-300 hover:text-red-400">删除</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(entry.id)}
+                      className="text-xs text-stone-200 hover:text-stone-400 transition-colors leading-none"
+                    >×</button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
