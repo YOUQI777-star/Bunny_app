@@ -257,16 +257,19 @@ export default function SubjectDetail() {
   // ─── 渲染每张卡片（列表 + 时间轴通用）─────────────────────
   function renderPhoto(photo) {
     return (
-      <div key={photo.id} className="bg-white rounded-2xl overflow-hidden border border-stone-100">
-        {photo.image_url
-          ? <img src={photo.image_url} className="w-full object-cover" />
-          : (
-            <div className="w-full py-6 px-4 flex items-start gap-3 bg-stone-50">
-              <span className="text-2xl mt-0.5 flex-shrink-0">💬</span>
-              <p className="text-sm text-stone-600 leading-relaxed">{photo.caption}</p>
-            </div>
-          )
-        }
+      <div key={photo.id} className="bg-white rounded-2xl border border-stone-100">
+        {/* 图片/文字块：overflow-hidden + 上圆角，让图片裁剪正确，同时不遮菜单 */}
+        <div className="overflow-hidden rounded-t-2xl">
+          {photo.image_url
+            ? <img src={photo.image_url} className="w-full object-cover" />
+            : (
+              <div className="w-full py-6 px-4 flex items-start gap-3 bg-stone-50">
+                <span className="text-2xl mt-0.5 flex-shrink-0">💬</span>
+                <p className="text-sm text-stone-600 leading-relaxed">{photo.caption}</p>
+              </div>
+            )
+          }
+        </div>
 
         {/* 日期 / caption / ⋯ 菜单行 */}
         <div className="px-4 py-3 flex items-start justify-between gap-2">
@@ -285,7 +288,7 @@ export default function SubjectDetail() {
           <div className="relative flex-shrink-0 -mr-1" data-photo-menu>
             <button
               onClick={() => setActiveMenu(activeMenu === photo.id ? null : photo.id)}
-              className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-stone-500 rounded-full hover:bg-stone-100 transition-colors text-base leading-none"
+              className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-600 rounded-full hover:bg-stone-100 transition-colors text-base leading-none"
             >···</button>
             {activeMenu === photo.id && (
               <div className="absolute right-0 top-9 z-20 bg-white rounded-xl shadow-lg border border-stone-100 py-1 w-28 overflow-hidden">
