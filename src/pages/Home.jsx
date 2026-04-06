@@ -6,7 +6,7 @@ const CATEGORIES = [
   { value: 'pet',     emoji: '🐾', label: '宠物',  desc: '毛茸茸的家人' },
   { value: 'person',  emoji: '🧑', label: '人物',  desc: '值得记住的人' },
   { value: 'thing',   emoji: '🪴', label: '事物',  desc: '有故事的存在' },
-  { value: 'bottle',  emoji: '🍶', label: '漂流瓶', desc: '私密的记录' },
+  { value: 'bottle',  emoji: '🌌', label: '漂流瓶', desc: '都丢进星空大海里' },
 ]
 
 export default function Home() {
@@ -34,6 +34,9 @@ export default function Home() {
           <h2 className="text-2xl font-bold text-stone-800 tracking-tight">
             {user ? `人，你好 👋` : '开始记录'}
           </h2>
+          {user && (
+            <p className="text-stone-300 mt-0.5 text-xs italic tracking-wide">our story begins...</p>
+          )}
           <p className="text-stone-400 mt-1 text-sm">
             {user ? '选择一个分类，开始新的记录' : '登录后记录你在意的一切'}
           </p>

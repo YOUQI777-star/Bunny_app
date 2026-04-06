@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { signOut } from '../lib/auth'
@@ -7,6 +7,7 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [user, setUser] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
@@ -15,6 +16,22 @@ export default function Navbar() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // 点击外部关闭下拉菜单（手机端无 hover，必须支持）
+  useEffect(() => {
+    if (!menuOpen) return
+    function handleOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
+  }, [menuOpen])
 
   async function handleSignOut() {
     await signOut()
@@ -33,7 +50,7 @@ export default function Navbar() {
 
         {/* 右侧 */}
         {user ? (
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="w-8 h-8 rounded-full bg-stone-800 text-white text-xs font-semibold flex items-center justify-center"

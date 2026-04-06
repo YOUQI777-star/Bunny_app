@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const CATEGORY_LABELS = {
-  pet: '🐾 宠物', person: '🧑 人物', thing: '🪴 事物', bottle: '🍶 漂流瓶'
+  pet: '🐾 宠物', person: '🧑 人物', thing: '🪴 事物', bottle: '🌌 漂流瓶'
 }
 
 const ALL_TAG = '全部'
@@ -172,7 +172,7 @@ export default function Profile() {
                   {subject.avatar_url
                     ? <img src={subject.avatar_url} className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center text-4xl">
-                        {subject.category === 'pet' ? '🐾' : subject.category === 'person' ? '🧑' : subject.category === 'bottle' ? '🍶' : '🪴'}
+                        {subject.category === 'pet' ? '🐾' : subject.category === 'person' ? '🧑' : subject.category === 'bottle' ? '🌌' : '🪴'}
                       </div>
                   }
                 </div>
