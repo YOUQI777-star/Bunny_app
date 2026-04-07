@@ -61,11 +61,12 @@ export default function Fragments() {
       const { data: { user } } = await supabase.auth.getUser()
       let sid = selfSubjectId
       if (!sid) {
-        const { data: created } = await supabase
+        const { data: created, error: subjectError } = await supabase
           .from('subjects')
           .insert([{ user_id: user.id, name: '碎片', type: 'self', category: 'self', tags: [] }])
           .select('id')
           .single()
+        if (subjectError) throw subjectError
         sid = created?.id
         setSelfSubjectId(sid)
       }
@@ -82,12 +83,13 @@ export default function Fragments() {
           .getPublicUrl(`subjects/${sid}/${fileName}`)
         imageUrl = urlData.publicUrl
       }
-      await supabase.from('photos').insert([{
+      const { error: insertError } = await supabase.from('photos').insert([{
         subject_id: sid,
         image_url: imageUrl,
         caption: text.trim() || null,
         taken_at: null,
       }])
+      if (insertError) throw insertError
       setText('')
       setPendingFile(null)
       setPendingPreview(null)
